@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     answer     TEXT NOT NULL,
     hint       TEXT,
     difficulty INTEGER DEFAULT 1,
-    tags       TEXT[]
+    tags       TEXT[],
+    wrong_options TEXT[]
 );
 
 CREATE TABLE IF NOT EXISTS user_history (
@@ -151,3 +152,15 @@ def get_streak(user_id: int) -> int:
         else:
             break
     return streak
+
+
+def get_wrong_options_from_db(exclude_id: int, task_type: str, count: int = 3) -> list[str]:
+    """Случайные ответы других задач того же типа."""
+    with _conn() as conn:
+        rows = conn.execute("""
+            SELECT answer FROM tasks
+            WHERE type = %s AND id != %s
+            ORDER BY RANDOM()
+            LIMIT %s
+        """, (task_type, exclude_id, count)).fetchall()
+    return [r["answer"] for r in rows]

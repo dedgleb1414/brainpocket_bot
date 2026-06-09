@@ -4,8 +4,8 @@ core/handlers.py — вся бизнес-логика бота.
 
 import random
 from core.bot import send_message, main_menu_keyboard, task_inline_keyboard, daily_mode_keyboard, options_inline_keyboard
-from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite, get_random_answers
-from core.db import get_user_progress, get_streak, get_favorites
+from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
+from core.db import get_user_progress, get_streak, get_favorites, get_wrong_options_from_db
 
 
 def handle_start(user_id: int):
@@ -44,6 +44,23 @@ def is_multiword(answer: str) -> bool:
     return len(answer.strip().split()) >= 2
 
 
+def build_options(task: dict) -> list[str]:
+    """
+    Собирает 4 варианта ответа.
+    Приоритет: wrong_options из задачи → случайные из БД.
+    """
+    wrong = task.get("wrong_options") or []
+
+    # Если в задаче не хватает вариантов — добьём из БД
+    if len(wrong) < 3:
+        extra = get_wrong_options_from_db(task["id"], task["type"], count=3 - len(wrong))
+        wrong = wrong + extra
+
+    options = [task["answer"]] + wrong[:3]
+    random.shuffle(options)
+    return options
+
+
 def handle_next_task(user_id: int, task_type):
     task = get_next_task(user_id, task_type)
 
@@ -71,13 +88,12 @@ def handle_next_task(user_id: int, task_type):
     )
 
     if is_multiword(task["answer"]):
-        wrong = get_random_answers(task["id"], task["type"], count=3)
-        options = [task["answer"]] + wrong
-        random.shuffle(options)
+        options = build_options(task)
         keyboard = options_inline_keyboard(task["id"], task["type"], options, task["answer"])
         send_message(user_id, text, reply_markup=keyboard)
     else:
-        send_message(user_id, text + "\n\n✏️ <i>Напиши ответ</i>", reply_markup=task_inline_keyboard(task["id"], task["type"]))
+        send_message(user_id, text + "\n\n✏️ <i>Напиши ответ</i>",
+                     reply_markup=task_inline_keyboard(task["id"], task["type"]))
 
 
 def handle_answer(user_id: int, text: str):
@@ -104,7 +120,6 @@ def handle_answer(user_id: int, text: str):
 
 
 def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_idx: int):
-    """Пользователь выбрал вариант по индексу."""
     task = get_task_by_id(task_id)
     if not task:
         return

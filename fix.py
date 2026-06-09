@@ -45,12 +45,13 @@ def cmd_load(path: str):
     with conn() as c:
         for t in tasks:
             cur = c.execute("""
-                INSERT INTO tasks (id, type, question, answer, hint, difficulty, tags)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO tasks (id, type, question, answer, hint, difficulty, tags, wrong_options)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO NOTHING
             """, (
                 t.get("id"), t["type"], t["question"], t["answer"],
                 t.get("hint"), t.get("difficulty", 1), t.get("tags", []),
+                t.get("wrong_options", []),
             ))
             if cur.rowcount:
                 inserted += 1
