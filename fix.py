@@ -17,73 +17,57 @@ import sys
 import json
 import os
 import requests
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from dotenv import load_dotenv
 
-load_dotenv()  # читаем .env локально
+load_dotenv()
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 BOT_TOKEN    = os.environ["BOT_TOKEN"]
-WEBHOOK_URL  = os.environ.get("WEBHOOK_URL", "")  # https://ваш-проект.vercel.app/api/webhook
+WEBHOOK_URL  = os.environ.get("WEBHOOK_URL", "")
 
 
 def conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
-
-# ── migrate ───────────────────────────────────────────────────────────────────
 
 def cmd_migrate():
     from core.db import migrate
     migrate()
 
 
-# ── load ──────────────────────────────────────────────────────────────────────
-
 def cmd_load(path: str):
     with open(path, encoding="utf-8") as f:
         tasks = json.load(f)
 
-    inserted = 0
-    skipped  = 0
-
+    inserted = skipped = 0
     with conn() as c:
-        with c.cursor() as cur:
-            for t in tasks:
-                cur.execute("""
-                    INSERT INTO tasks (id, type, question, answer, hint, difficulty, tags)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO NOTHING
-                """, (
-                    t.get("id"),
-                    t["type"],
-                    t["question"],
-                    t["answer"],
-                    t.get("hint"),
-                    t.get("difficulty", 1),
-                    t.get("tags", []),
-                ))
-                if cur.rowcount:
-                    inserted += 1
-                else:
-                    skipped += 1
+        for t in tasks:
+            cur = c.execute("""
+                INSERT INTO tasks (id, type, question, answer, hint, difficulty, tags)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+            """, (
+                t.get("id"), t["type"], t["question"], t["answer"],
+                t.get("hint"), t.get("difficulty", 1), t.get("tags", []),
+            ))
+            if cur.rowcount:
+                inserted += 1
+            else:
+                skipped += 1
         c.commit()
 
     print(f"✅ Загружено: {inserted}  |  Пропущено (дубли): {skipped}")
 
 
-# ── stats ─────────────────────────────────────────────────────────────────────
-
 def cmd_stats():
     with conn() as c:
-        with c.cursor() as cur:
-            cur.execute("""
-                SELECT type, difficulty, COUNT(*) as cnt
-                FROM tasks GROUP BY type, difficulty
-                ORDER BY type, difficulty
-            """)
-            rows = cur.fetchall()
+        rows = c.execute("""
+            SELECT type, difficulty, COUNT(*) as cnt
+            FROM tasks GROUP BY type, difficulty
+            ORDER BY type, difficulty
+        """).fetchall()
 
     if not rows:
         print("База задач пуста.")
@@ -101,18 +85,13 @@ def cmd_stats():
     print(f"\nИтого: {total}")
 
 
-# ── reset ─────────────────────────────────────────────────────────────────────
-
 def cmd_reset(user_id: int):
     with conn() as c:
-        with c.cursor() as cur:
-            cur.execute("DELETE FROM user_history WHERE user_id = %s", (user_id,))
-            deleted = cur.rowcount
+        cur = c.execute("DELETE FROM user_history WHERE user_id = %s", (user_id,))
+        deleted = cur.rowcount
         c.commit()
     print(f"✅ Удалено {deleted} записей для user_id={user_id}")
 
-
-# ── setwebhook / delwebhook ───────────────────────────────────────────────────
 
 def cmd_setwebhook():
     if not WEBHOOK_URL:
@@ -126,19 +105,13 @@ def cmd_setwebhook():
 
 
 def cmd_delwebhook():
-    r = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
-    )
+    r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
     print(r.json())
 
 
-# ── task ──────────────────────────────────────────────────────────────────────
-
 def cmd_task(task_id: int):
     with conn() as c:
-        with c.cursor() as cur:
-            cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
-            row = cur.fetchone()
+        row = c.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     if row:
         for k, v in row.items():
             print(f"{k:12} {v}")
@@ -146,26 +119,20 @@ def cmd_task(task_id: int):
         print(f"Задача #{task_id} не найдена")
 
 
-# ── find ──────────────────────────────────────────────────────────────────────
-
 def cmd_find(text: str):
     with conn() as c:
-        with c.cursor() as cur:
-            cur.execute("""
-                SELECT id, type, difficulty, LEFT(question, 80) as q
-                FROM tasks
-                WHERE question ILIKE %s OR answer ILIKE %s
-                LIMIT 20
-            """, (f"%{text}%", f"%{text}%"))
-            rows = cur.fetchall()
+        rows = c.execute("""
+            SELECT id, type, difficulty, LEFT(question, 80) as q
+            FROM tasks
+            WHERE question ILIKE %s OR answer ILIKE %s
+            LIMIT 20
+        """, (f"%{text}%", f"%{text}%")).fetchall()
     if not rows:
         print("Ничего не найдено")
     for r in rows:
         diff = {1:"L",2:"M",3:"H",4:"X"}.get(r["difficulty"], "?")
         print(f"#{r['id']:>5} [{r['type']:6}] [{diff}] {r['q']}")
 
-
-# ── точка входа ───────────────────────────────────────────────────────────────
 
 COMMANDS = {
     "migrate":    lambda _: cmd_migrate(),
@@ -183,6 +150,4 @@ if __name__ == "__main__":
     if not argv or argv[0] not in COMMANDS:
         print(__doc__)
         sys.exit(0)
-    cmd  = argv[0]
-    args = argv[1:]
-    COMMANDS[cmd](args)
+    COMMANDS[argv[0]](argv[1:])

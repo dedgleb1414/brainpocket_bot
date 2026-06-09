@@ -2,12 +2,11 @@
 core/handlers.py — вся бизнес-логика бота.
 """
 
-from core.bot import send_message, main_menu_keyboard, task_inline_keyboard, daily_mode_keyboard
-from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
+import random
+from core.bot import send_message, main_menu_keyboard, task_inline_keyboard, daily_mode_keyboard, options_inline_keyboard
+from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite, get_random_answers
 from core.db import get_user_progress, get_streak, get_favorites
 
-
-# ── /start ────────────────────────────────────────────────────────────────────
 
 def handle_start(user_id: int):
     text = (
@@ -19,14 +18,12 @@ def handle_start(user_id: int):
     send_message(user_id, text, reply_markup=main_menu_keyboard())
 
 
-# ── Главное меню ──────────────────────────────────────────────────────────────
-
 MENU_TO_TYPE = {
     "🧩 Загадки":    "riddle",
     "🔍 Логика":     "logic",
     "⚡ Мини-квиз":  "quiz",
     "🧠 IQ-задачи":  "iq",
-    "🎲 Случайное":  None,  # случайный тип
+    "🎲 Случайное":  None,
 }
 
 def handle_menu(user_id: int, label: str):
@@ -39,18 +36,19 @@ def handle_menu(user_id: int, label: str):
     if label == "⏱ Режим дня":
         send_message(user_id, "Выбери сколько времени у тебя есть:", reply_markup=daily_mode_keyboard())
         return
-
     task_type = MENU_TO_TYPE.get(label)
     handle_next_task(user_id, task_type)
 
 
-# ── Выдача задачи ─────────────────────────────────────────────────────────────
+def is_multiword(answer: str) -> bool:
+    """Ответ из 2+ слов — показываем варианты."""
+    return len(answer.strip().split()) >= 2
+
 
 def handle_next_task(user_id: int, task_type: str | None):
     task = get_next_task(user_id, task_type)
 
     if task is None:
-        # Все задачи этого типа пройдены — сброс цикла
         from core.db import reset_history
         reset_history(user_id, task_type)
         task = get_next_task(user_id, task_type)
@@ -65,7 +63,6 @@ def handle_next_task(user_id: int, task_type: str | None):
 
     TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠"}
     DIFF_LABEL = {1: "Легко", 2: "Средне", 3: "Сложно", 4: "Эксперт"}
-
     emoji = TYPE_EMOJI.get(task["type"], "🎲")
     diff  = DIFF_LABEL.get(task["difficulty"], "")
 
@@ -73,16 +70,19 @@ def handle_next_task(user_id: int, task_type: str | None):
         f"{emoji} <b>Задача #{task['id']}</b>  <i>{diff}</i>\n\n"
         f"{task['question']}"
     )
-    send_message(user_id, text, reply_markup=task_inline_keyboard(task["id"], task["type"]))
 
+    if is_multiword(task["answer"]):
+        # Собираем 3 случайных неправильных ответа того же типа
+        wrong = get_random_answers(task["id"], task["type"], count=3)
+        options = [task["answer"]] + wrong
+        random.shuffle(options)
+        keyboard = options_inline_keyboard(task["id"], task["type"], options, task["answer"])
+        send_message(user_id, text, reply_markup=keyboard)
+    else:
+        send_message(user_id, text + "\n\n✏️ <i>Напиши ответ</i>", reply_markup=task_inline_keyboard(task["id"], task["type"]))
 
-# ── Ответ пользователя ────────────────────────────────────────────────────────
 
 def handle_answer(user_id: int, text: str):
-    """
-    Простая проверка: сохраняем последнюю показанную задачу в user_history
-    и сравниваем ответ (нечёткое совпадение).
-    """
     from core.db import get_last_shown_task
     task_id = get_last_shown_task(user_id)
     if not task_id:
@@ -90,6 +90,10 @@ def handle_answer(user_id: int, text: str):
 
     task = get_task_by_id(task_id)
     if not task:
+        return
+
+    # Только для однословных задач
+    if is_multiword(task["answer"]):
         return
 
     correct = task["answer"].strip().lower()
@@ -102,7 +106,19 @@ def handle_answer(user_id: int, text: str):
         send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
 
 
-# ── Подсказка ─────────────────────────────────────────────────────────────────
+def handle_option_answer(user_id: int, task_id: int, chosen: str, task_type: str):
+    """Пользователь выбрал вариант ответа кнопкой."""
+    task = get_task_by_id(task_id)
+    if not task:
+        return
+
+    correct = task["answer"].strip().lower()
+    if chosen.strip().lower() == correct:
+        mark_solved(user_id, task_id)
+        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}")
+    else:
+        send_message(user_id, f"❌ Неверно.\n\n<b>Правильный ответ:</b> {task['answer']}")
+
 
 def handle_hint(user_id: int, task_id: int):
     task = get_task_by_id(task_id)
@@ -112,8 +128,6 @@ def handle_hint(user_id: int, task_id: int):
     else:
         send_message(user_id, "💡 Подсказки к этой задаче нет. Думай!")
 
-
-# ── Избранное ─────────────────────────────────────────────────────────────────
 
 def handle_favorite(user_id: int, task_id: int):
     add_favorite(user_id, task_id)
@@ -125,19 +139,15 @@ def handle_favorites_list(user_id: int):
     if not favs:
         send_message(user_id, "❤️ Избранное пустое. Сохраняй понравившиеся задачи!")
         return
-
     lines = [f"❤️ <b>Избранное ({len(favs)} задач)</b>\n"]
-    for t in favs[:10]:  # показываем первые 10
+    for t in favs[:10]:
         lines.append(f"#{t['id']} — {t['question'][:60]}…")
     send_message(user_id, "\n".join(lines))
 
 
-# ── Прогресс ──────────────────────────────────────────────────────────────────
-
 def handle_progress(user_id: int):
     p = get_user_progress(user_id)
     streak = get_streak(user_id)
-
     text = (
         f"📈 <b>Мой прогресс</b>\n\n"
         f"🧩 Загадки:   {p.get('riddle',0)}/1000\n"
@@ -149,8 +159,6 @@ def handle_progress(user_id: int):
     )
     send_message(user_id, text)
 
-
-# ── Режим дня ─────────────────────────────────────────────────────────────────
 
 DAILY_PACKS = {
     5:  [("riddle", 1), ("logic", 1)],

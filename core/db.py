@@ -1,30 +1,28 @@
 """
-core/db.py — работа с PostgreSQL (Supabase / Neon).
-Подключение через DATABASE_URL из переменных окружения Vercel.
+core/db.py — работа с PostgreSQL через psycopg3 (psycopg[binary]).
+Совместимо с Python 3.12+.
 """
 
 import os
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from datetime import date, timedelta
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
 
 def _conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
-
-# ── Схема БД (выполни один раз через fix.py migrate) ─────────────────────────
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tasks (
     id         SERIAL PRIMARY KEY,
-    type       TEXT NOT NULL,          -- riddle | logic | quiz | iq
+    type       TEXT NOT NULL,
     question   TEXT NOT NULL,
     answer     TEXT NOT NULL,
     hint       TEXT,
-    difficulty INTEGER DEFAULT 1,      -- 1=легко 2=средне 3=сложно 4=эксперт
+    difficulty INTEGER DEFAULT 1,
     tags       TEXT[]
 );
 
@@ -46,121 +44,100 @@ CREATE INDEX IF NOT EXISTS idx_tasks_type   ON tasks(type);
 
 def migrate():
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(SCHEMA)
+        conn.execute(SCHEMA)
         conn.commit()
     print("✅ Миграция выполнена")
 
 
-# ── История / показы ──────────────────────────────────────────────────────────
-
 def mark_shown(user_id: int, task_id: int):
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO user_history (user_id, task_id)
-                VALUES (%s, %s)
-                ON CONFLICT (user_id, task_id) DO NOTHING
-            """, (user_id, task_id))
+        conn.execute("""
+            INSERT INTO user_history (user_id, task_id)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id, task_id) DO NOTHING
+        """, (user_id, task_id))
         conn.commit()
 
 
 def mark_solved(user_id: int, task_id: int):
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE user_history
-                SET solved = TRUE, solved_at = NOW()
-                WHERE user_id = %s AND task_id = %s
-            """, (user_id, task_id))
+        conn.execute("""
+            UPDATE user_history
+            SET solved = TRUE, solved_at = NOW()
+            WHERE user_id = %s AND task_id = %s
+        """, (user_id, task_id))
         conn.commit()
 
 
 def get_last_shown_task(user_id: int) -> int | None:
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT task_id FROM user_history
-                WHERE user_id = %s
-                ORDER BY shown_at DESC LIMIT 1
-            """, (user_id,))
-            row = cur.fetchone()
+        row = conn.execute("""
+            SELECT task_id FROM user_history
+            WHERE user_id = %s
+            ORDER BY shown_at DESC LIMIT 1
+        """, (user_id,)).fetchone()
     return row["task_id"] if row else None
 
 
 def reset_history(user_id: int, task_type: str | None):
-    """Сброс цикла: удаляем историю показов для данного типа (не решённые)."""
     with _conn() as conn:
-        with conn.cursor() as cur:
-            if task_type:
-                cur.execute("""
-                    DELETE FROM user_history
-                    WHERE user_id = %s AND task_id IN (
-                        SELECT id FROM tasks WHERE type = %s
-                    ) AND solved = FALSE
-                """, (user_id, task_type))
-            else:
-                cur.execute("""
-                    DELETE FROM user_history WHERE user_id = %s AND solved = FALSE
-                """, (user_id,))
+        if task_type:
+            conn.execute("""
+                DELETE FROM user_history
+                WHERE user_id = %s AND task_id IN (
+                    SELECT id FROM tasks WHERE type = %s
+                ) AND solved = FALSE
+            """, (user_id, task_type))
+        else:
+            conn.execute("""
+                DELETE FROM user_history WHERE user_id = %s AND solved = FALSE
+            """, (user_id,))
         conn.commit()
 
 
-# ── Избранное ─────────────────────────────────────────────────────────────────
-
 def add_favorite(user_id: int, task_id: int):
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO user_history (user_id, task_id, favorited)
-                VALUES (%s, %s, TRUE)
-                ON CONFLICT (user_id, task_id)
-                DO UPDATE SET favorited = TRUE
-            """, (user_id, task_id))
+        conn.execute("""
+            INSERT INTO user_history (user_id, task_id, favorited)
+            VALUES (%s, %s, TRUE)
+            ON CONFLICT (user_id, task_id)
+            DO UPDATE SET favorited = TRUE
+        """, (user_id, task_id))
         conn.commit()
 
 
 def get_favorites(user_id: int) -> list[dict]:
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT t.id, t.question, t.type
-                FROM user_history uh
-                JOIN tasks t ON t.id = uh.task_id
-                WHERE uh.user_id = %s AND uh.favorited = TRUE
-                ORDER BY uh.shown_at DESC
-            """, (user_id,))
-            return cur.fetchall()
+        rows = conn.execute("""
+            SELECT t.id, t.question, t.type
+            FROM user_history uh
+            JOIN tasks t ON t.id = uh.task_id
+            WHERE uh.user_id = %s AND uh.favorited = TRUE
+            ORDER BY uh.shown_at DESC
+        """, (user_id,)).fetchall()
+    return rows
 
-
-# ── Прогресс и серии ──────────────────────────────────────────────────────────
 
 def get_user_progress(user_id: int) -> dict:
-    """Возвращает {type: solved_count}."""
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT t.type, COUNT(*) AS cnt
-                FROM user_history uh
-                JOIN tasks t ON t.id = uh.task_id
-                WHERE uh.user_id = %s AND uh.solved = TRUE
-                GROUP BY t.type
-            """, (user_id,))
-            rows = cur.fetchall()
+        rows = conn.execute("""
+            SELECT t.type, COUNT(*) AS cnt
+            FROM user_history uh
+            JOIN tasks t ON t.id = uh.task_id
+            WHERE uh.user_id = %s AND uh.solved = TRUE
+            GROUP BY t.type
+        """, (user_id,)).fetchall()
     return {r["type"]: r["cnt"] for r in rows}
 
 
 def get_streak(user_id: int) -> int:
-    """Считает серию активных дней подряд."""
     with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT DISTINCT DATE(shown_at) AS day
-                FROM user_history
-                WHERE user_id = %s
-                ORDER BY day DESC
-            """, (user_id,))
-            days = [r["day"] for r in cur.fetchall()]
+        days = [r["day"] for r in conn.execute("""
+            SELECT DISTINCT DATE(shown_at) AS day
+            FROM user_history
+            WHERE user_id = %s
+            ORDER BY day DESC
+        """, (user_id,)).fetchall()]
 
     if not days:
         return 0
