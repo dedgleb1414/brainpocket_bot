@@ -44,9 +44,9 @@ def route_update(update: dict):
         elif data.startswith("daily:"):
             handle_daily_mode(user_id, int(data.split(":")[1]))
         elif data.startswith("ans:"):
-            # ans:task_id:task_type:chosen_answer
-            parts = data.split(":", 3)
+            # ans:task_id:correct_idx:chosen_idx
+            parts = data.split(":")
             task_id = int(parts[1])
-            task_type = parts[2]
-            chosen = parts[3]
-            handle_option_answer(user_id, task_id, chosen, task_type)
+            correct_idx = int(parts[2])
+            chosen_idx = int(parts[3])
+            handle_option_answer(user_id, task_id, correct_idx, chosen_idx)

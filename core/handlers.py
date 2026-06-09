@@ -41,11 +41,10 @@ def handle_menu(user_id: int, label: str):
 
 
 def is_multiword(answer: str) -> bool:
-    """Ответ из 2+ слов — показываем варианты."""
     return len(answer.strip().split()) >= 2
 
 
-def handle_next_task(user_id: int, task_type: str | None):
+def handle_next_task(user_id: int, task_type):
     task = get_next_task(user_id, task_type)
 
     if task is None:
@@ -72,7 +71,6 @@ def handle_next_task(user_id: int, task_type: str | None):
     )
 
     if is_multiword(task["answer"]):
-        # Собираем 3 случайных неправильных ответа того же типа
         wrong = get_random_answers(task["id"], task["type"], count=3)
         options = [task["answer"]] + wrong
         random.shuffle(options)
@@ -92,7 +90,6 @@ def handle_answer(user_id: int, text: str):
     if not task:
         return
 
-    # Только для однословных задач
     if is_multiword(task["answer"]):
         return
 
@@ -106,14 +103,13 @@ def handle_answer(user_id: int, text: str):
         send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
 
 
-def handle_option_answer(user_id: int, task_id: int, chosen: str, task_type: str):
-    """Пользователь выбрал вариант ответа кнопкой."""
+def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_idx: int):
+    """Пользователь выбрал вариант по индексу."""
     task = get_task_by_id(task_id)
     if not task:
         return
 
-    correct = task["answer"].strip().lower()
-    if chosen.strip().lower() == correct:
+    if chosen_idx == correct_idx:
         mark_solved(user_id, task_id)
         send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}")
     else:

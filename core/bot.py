@@ -34,27 +34,28 @@ def main_menu_keyboard():
 
 
 def task_inline_keyboard(task_id, task_type):
-    """Кнопки для однословных задач."""
     return {
         "inline_keyboard": [
             [
-                {"text": "💡 Подсказка",   "callback_data": f"hint:{task_id}"},
-                {"text": "❤️ Избранное",   "callback_data": f"fav:{task_id}"},
+                {"text": "💡 Подсказка", "callback_data": f"hint:{task_id}"},
+                {"text": "❤️ Избранное", "callback_data": f"fav:{task_id}"},
             ],
-            [
-                {"text": "➡️ Следующая", "callback_data": f"next:{task_type}"},
-            ],
+            [{"text": "➡️ Следующая", "callback_data": f"next:{task_type}"}],
         ]
     }
 
 
 def options_inline_keyboard(task_id, task_type, options, correct_answer):
-    """Кнопки с вариантами ответов для многословных задач."""
+    """
+    Варианты ответов. callback_data = ans:task_id:index
+    где index — позиция правильного ответа в списке options.
+    Сам текст вариантов хранится только в кнопке, не в callback_data.
+    """
+    correct_idx = options.index(correct_answer)
     rows = []
-    for opt in options:
-        # Обрезаем до 30 символов чтобы влезло в кнопку
-        label = opt[:60] if len(opt) <= 60 else opt[:57] + "…"
-        rows.append([{"text": label, "callback_data": f"ans:{task_id}:{task_type}:{opt[:50]}"}])
+    for i, opt in enumerate(options):
+        label = opt if len(opt) <= 60 else opt[:57] + "…"
+        rows.append([{"text": label, "callback_data": f"ans:{task_id}:{correct_idx}:{i}"}])
     rows.append([
         {"text": "💡 Подсказка", "callback_data": f"hint:{task_id}"},
         {"text": "❤️ Избранное", "callback_data": f"fav:{task_id}"},
