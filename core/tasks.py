@@ -15,14 +15,23 @@ def _conn():
 
 def get_next_task(user_id, task_type):
     with _conn() as conn:
-        row = conn.execute("""
-            SELECT * FROM tasks
-            WHERE (%s IS NULL OR type = %s)
-            AND id NOT IN (
-                SELECT task_id FROM user_history WHERE user_id = %s
-            )
-            ORDER BY RANDOM() LIMIT 1
-        """, (task_type, task_type, user_id)).fetchone()
+        if task_type:
+            row = conn.execute("""
+                SELECT * FROM tasks
+                WHERE type = %s
+                AND id NOT IN (
+                    SELECT task_id FROM user_history WHERE user_id = %s
+                )
+                ORDER BY RANDOM() LIMIT 1
+            """, (task_type, user_id)).fetchone()
+        else:
+            row = conn.execute("""
+                SELECT * FROM tasks
+                WHERE id NOT IN (
+                    SELECT task_id FROM user_history WHERE user_id = %s
+                )
+                ORDER BY RANDOM() LIMIT 1
+            """, (user_id,)).fetchone()
     return dict(row) if row else None
 
 
