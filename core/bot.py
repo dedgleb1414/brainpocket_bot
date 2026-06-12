@@ -74,6 +74,14 @@ def quiz_options_keyboard(task_id, options, correct_answer):
     return {"inline_keyboard": rows}
 
 
+def next_task_keyboard(task_type):
+    return {
+        "inline_keyboard": [[
+            {"text": "➡️ Ещё задачу", "callback_data": f"next:{task_type}"}
+        ]]
+    }
+
+
 def daily_mode_keyboard():
     return {
         "inline_keyboard": [[

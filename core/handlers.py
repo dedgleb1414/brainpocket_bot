@@ -4,7 +4,8 @@ core/handlers.py — вся бизнес-логика бота.
 
 import random
 from core.bot import (send_message, main_menu_keyboard, task_inline_keyboard,
-                      daily_mode_keyboard, options_inline_keyboard, quiz_options_keyboard)
+                      daily_mode_keyboard, options_inline_keyboard, quiz_options_keyboard,
+                      next_task_keyboard)
 from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
 from core.db import (get_user_progress, get_streak, get_favorites, get_wrong_options_from_db,
                      get_quiz_tasks, create_quiz_session, get_quiz_session,
@@ -120,7 +121,8 @@ def handle_answer(user_id: int, text: str):
 
     if correct in given or given in correct:
         mark_solved(user_id, task_id)
-        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}")
+        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
+                     reply_markup=next_task_keyboard(task["type"]))
     else:
         send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
 
@@ -132,7 +134,8 @@ def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_id
 
     if chosen_idx == correct_idx:
         mark_solved(user_id, task_id)
-        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}")
+        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
+                     reply_markup=next_task_keyboard(task["type"]))
     else:
         send_message(user_id, "❌ Неверно. Попробуй ещё или жми 💡 Подсказку.")
 
