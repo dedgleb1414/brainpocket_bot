@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS user_history (
     UNIQUE (user_id, task_id)
 );
 
+CREATE TABLE IF NOT EXISTS quiz_sessions (
+    user_id           BIGINT PRIMARY KEY,
+    task_ids          INTEGER[] NOT NULL,
+    current_idx       INTEGER DEFAULT 0,
+    question_shown_at TIMESTAMPTZ DEFAULT NOW(),
+    failed            BOOLEAN DEFAULT FALSE,
+    completed         BOOLEAN DEFAULT FALSE
+);
+
 CREATE INDEX IF NOT EXISTS idx_history_user ON user_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_type   ON tasks(type);
 """
@@ -164,3 +173,69 @@ def get_wrong_options_from_db(exclude_id: int, task_type: str, count: int = 3) -
             LIMIT %s
         """, (task_type, exclude_id, count)).fetchall()
     return [r["answer"] for r in rows]
+
+
+# ── Мини-квиз ────────────────────────────────────────────────────────────────
+
+def get_quiz_tasks(user_id: int, count: int = 3) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute("""
+            SELECT * FROM tasks
+            WHERE type = 'quiz'
+            AND id NOT IN (
+                SELECT task_id FROM user_history WHERE user_id = %s
+            )
+            ORDER BY RANDOM()
+            LIMIT %s
+        """, (user_id, count)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_quiz_session(user_id: int, task_ids: list):
+    with _conn() as conn:
+        conn.execute("""
+            INSERT INTO quiz_sessions
+                (user_id, task_ids, current_idx, question_shown_at, failed, completed)
+            VALUES (%s, %s, 0, NOW(), FALSE, FALSE)
+            ON CONFLICT (user_id) DO UPDATE
+            SET task_ids          = EXCLUDED.task_ids,
+                current_idx       = 0,
+                question_shown_at = NOW(),
+                failed            = FALSE,
+                completed         = FALSE
+        """, (user_id, task_ids))
+        conn.commit()
+
+
+def get_quiz_session(user_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM quiz_sessions WHERE user_id = %s", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def advance_quiz_session(user_id: int):
+    with _conn() as conn:
+        conn.execute("""
+            UPDATE quiz_sessions
+            SET current_idx = current_idx + 1, question_shown_at = NOW()
+            WHERE user_id = %s
+        """, (user_id,))
+        conn.commit()
+
+
+def fail_quiz_session(user_id: int):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE quiz_sessions SET failed = TRUE WHERE user_id = %s", (user_id,)
+        )
+        conn.commit()
+
+
+def complete_quiz_session(user_id: int):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE quiz_sessions SET completed = TRUE WHERE user_id = %s", (user_id,)
+        )
+        conn.commit()

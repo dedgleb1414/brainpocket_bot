@@ -4,7 +4,8 @@ fix.py — локальный инструмент для обслуживани
 Запускать из корня проекта:
 
   python fix.py migrate          — создать таблицы в БД
-  python fix.py load data/tasks.json — загрузить задачи из JSON
+  python fix.py load data/tasks.json   — загрузить новые задачи (пропускает дубли)
+  python fix.py reload data/tasks.json — обновить существующие задачи (upsert)
   python fix.py stats            — статистика по задачам в БД
   python fix.py reset <user_id>  — сбросить историю пользователя
   python fix.py setwebhook       — зарегистрировать webhook в Telegram
@@ -60,6 +61,38 @@ def cmd_load(path: str):
         c.commit()
 
     print(f"✅ Загружено: {inserted}  |  Пропущено (дубли): {skipped}")
+
+
+def cmd_reload(path: str):
+    with open(path, encoding="utf-8") as f:
+        tasks = json.load(f)
+
+    inserted = updated = 0
+    with conn() as c:
+        for t in tasks:
+            cur = c.execute("""
+                INSERT INTO tasks (id, type, question, answer, hint, difficulty, tags, wrong_options)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET type          = EXCLUDED.type,
+                    question      = EXCLUDED.question,
+                    answer        = EXCLUDED.answer,
+                    hint          = EXCLUDED.hint,
+                    difficulty    = EXCLUDED.difficulty,
+                    tags          = EXCLUDED.tags,
+                    wrong_options = EXCLUDED.wrong_options
+            """, (
+                t.get("id"), t["type"], t["question"], t["answer"],
+                t.get("hint"), t.get("difficulty", 1), t.get("tags", []),
+                t.get("wrong_options", []),
+            ))
+            if cur.rowcount == 1:
+                inserted += 1
+            else:
+                updated += 1
+        c.commit()
+
+    print(f"✅ Новых: {inserted}  |  Обновлено: {updated}")
 
 
 def cmd_stats():
@@ -138,6 +171,7 @@ def cmd_find(text: str):
 COMMANDS = {
     "migrate":    lambda _: cmd_migrate(),
     "load":       lambda args: cmd_load(args[0]) if args else print("Укажи путь к JSON"),
+    "reload":     lambda args: cmd_reload(args[0]) if args else print("Укажи путь к JSON"),
     "stats":      lambda _: cmd_stats(),
     "reset":      lambda args: cmd_reset(int(args[0])) if args else print("Укажи user_id"),
     "setwebhook": lambda _: cmd_setwebhook(),

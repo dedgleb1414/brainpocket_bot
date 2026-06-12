@@ -7,6 +7,7 @@ from core.handlers import (
     handle_start, handle_menu, handle_next_task,
     handle_answer, handle_hint, handle_favorite,
     handle_progress, handle_daily_mode, handle_option_answer,
+    handle_quiz_answer,
 )
 
 MENU_LABELS = {
@@ -44,9 +45,14 @@ def route_update(update: dict):
         elif data.startswith("daily:"):
             handle_daily_mode(user_id, int(data.split(":")[1]))
         elif data.startswith("ans:"):
-            # ans:task_id:correct_idx:chosen_idx
             parts = data.split(":")
             task_id = int(parts[1])
             correct_idx = int(parts[2])
             chosen_idx = int(parts[3])
             handle_option_answer(user_id, task_id, correct_idx, chosen_idx)
+        elif data.startswith("qans:"):
+            parts = data.split(":")
+            task_id = int(parts[1])
+            correct_idx = int(parts[2])
+            chosen_idx = int(parts[3])
+            handle_quiz_answer(user_id, task_id, correct_idx, chosen_idx)

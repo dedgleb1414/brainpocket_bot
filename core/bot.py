@@ -64,6 +64,16 @@ def options_inline_keyboard(task_id, task_type, options, correct_answer):
     return {"inline_keyboard": rows}
 
 
+def quiz_options_keyboard(task_id, options, correct_answer):
+    """Варианты ответов для мини-квиза (qans: вместо ans:)."""
+    correct_idx = options.index(correct_answer)
+    rows = []
+    for i, opt in enumerate(options):
+        label = opt if len(opt) <= 60 else opt[:57] + "…"
+        rows.append([{"text": label, "callback_data": f"qans:{task_id}:{correct_idx}:{i}"}])
+    return {"inline_keyboard": rows}
+
+
 def daily_mode_keyboard():
     return {
         "inline_keyboard": [[
