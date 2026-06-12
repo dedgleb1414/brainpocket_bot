@@ -37,7 +37,10 @@ def route_update(update: dict):
         if data.startswith("next:"):
             handle_next_task(user_id, data.split(":")[1])
         elif data.startswith("hint:"):
-            handle_hint(user_id, int(data.split(":")[1]))
+            parts = data.split(":")
+            task_id = int(parts[1])
+            level = int(parts[2]) if len(parts) > 2 else 0
+            handle_hint(user_id, task_id, level)
         elif data.startswith("fav:"):
             handle_favorite(user_id, int(data.split(":")[1]))
         elif data == "progress":

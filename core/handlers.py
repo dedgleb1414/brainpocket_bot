@@ -134,16 +134,25 @@ def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_id
         mark_solved(user_id, task_id)
         send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}")
     else:
-        send_message(user_id, f"❌ Неверно.\n\n<b>Правильный ответ:</b> {task['answer']}")
+        send_message(user_id, "❌ Неверно. Попробуй ещё или жми 💡 Подсказку.")
 
 
-def handle_hint(user_id: int, task_id: int):
+def handle_hint(user_id: int, task_id: int, level: int = 0):
     task = get_task_by_id(task_id)
-    hint = task.get("hint") if task else None
-    if hint:
-        send_message(user_id, f"💡 <i>{hint}</i>")
+    if not task:
+        return
+
+    if level == 0:
+        hint = task.get("hint")
+        stronger_btn = {"inline_keyboard": [[
+            {"text": "💡 Показать ответ", "callback_data": f"hint:{task_id}:1"}
+        ]]}
+        if hint:
+            send_message(user_id, f"💡 <i>{hint}</i>", reply_markup=stronger_btn)
+        else:
+            send_message(user_id, "💡 Подсказки нет.", reply_markup=stronger_btn)
     else:
-        send_message(user_id, "💡 Подсказки к этой задаче нет. Думай!")
+        send_message(user_id, f"💡 <b>Ответ:</b> {task['answer']}")
 
 
 def handle_favorite(user_id: int, task_id: int):
