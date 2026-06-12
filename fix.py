@@ -12,6 +12,9 @@ fix.py — локальный инструмент для обслуживани
   python fix.py delwebhook       — удалить webhook
   python fix.py task <id>        — просмотр задачи по ID
   python fix.py find <text>      — поиск задач по тексту
+  python fix.py generate_options           — сгенерировать варианты ответов для задач без wrong_options
+  python fix.py generate_options quiz      — только для определённого типа
+  python fix.py generate_options quiz 50   — тип + размер батча (по умолчанию 20)
 """
 
 import sys
@@ -168,6 +171,90 @@ def cmd_find(text: str):
         print(f"#{r['id']:>5} [{r['type']:6}] [{diff}] {r['q']}")
 
 
+def _call_claude(api_key: str, prompt: str) -> str | None:
+    resp = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 150,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        print(f"    API error {resp.status_code}: {resp.text[:200]}")
+        return None
+    return resp.json()["content"][0]["text"].strip()
+
+
+def _generate_wrong_options(api_key: str, task: dict) -> list[str] | None:
+    prompt = (
+        f"Для задания из игры-тренажёра мозга придумай ровно 3 НЕПРАВИЛЬНЫХ варианта ответа.\n\n"
+        f"Вопрос: {task['question']}\n"
+        f"Правильный ответ: {task['answer']}\n\n"
+        f"Требования:\n"
+        f"- Варианты должны быть правдоподобными и похожими по стилю на правильный ответ\n"
+        f"- Не должно быть очевидно, что они неправильные\n"
+        f"- Каждый вариант — отдельная строка, без нумерации\n"
+        f"- Ровно 3 строки, ничего лишнего"
+    )
+    text = _call_claude(api_key, prompt)
+    if not text:
+        return None
+    options = [line.strip("•–— ").strip() for line in text.splitlines() if line.strip()][:3]
+    return options if len(options) == 3 else None
+
+
+def cmd_generate_options(task_type: str | None = None, batch: int = 20):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("❌ Задай ANTHROPIC_API_KEY в .env")
+        return
+
+    with conn() as c:
+        query = """
+            SELECT id, type, question, answer FROM tasks
+            WHERE (wrong_options IS NULL OR array_length(wrong_options, 1) IS NULL)
+              AND array_length(string_to_array(trim(answer), ' '), 1) >= 2
+        """
+        params: list = []
+        if task_type:
+            query += " AND type = %s"
+            params.append(task_type)
+        query += " ORDER BY id LIMIT %s"
+        params.append(batch)
+        rows = c.execute(query, params).fetchall()
+
+    if not rows:
+        print("✅ Все задачи с многословными ответами уже имеют варианты.")
+        return
+
+    print(f"Найдено {len(rows)} задач без вариантов. Генерирую...\n")
+    updated = errors = 0
+
+    for task in rows:
+        options = _generate_wrong_options(api_key, task)
+        if options:
+            with conn() as c:
+                c.execute(
+                    "UPDATE tasks SET wrong_options = %s WHERE id = %s",
+                    (options, task["id"])
+                )
+                c.commit()
+            print(f"  #{task['id']:>5} ✓  {options}")
+            updated += 1
+        else:
+            print(f"  #{task['id']:>5} ✗  не удалось сгенерировать")
+            errors += 1
+
+    print(f"\nГотово: обновлено {updated}, ошибок {errors}")
+
+
 COMMANDS = {
     "migrate":    lambda _: cmd_migrate(),
     "load":       lambda args: cmd_load(args[0]) if args else print("Укажи путь к JSON"),
@@ -178,6 +265,10 @@ COMMANDS = {
     "delwebhook": lambda _: cmd_delwebhook(),
     "task":       lambda args: cmd_task(int(args[0])) if args else print("Укажи ID"),
     "find":       lambda args: cmd_find(" ".join(args)) if args else print("Укажи текст"),
+    "generate_options": lambda args: cmd_generate_options(
+        task_type=args[0] if args else None,
+        batch=int(args[1]) if len(args) > 1 else 20,
+    ),
 }
 
 if __name__ == "__main__":
