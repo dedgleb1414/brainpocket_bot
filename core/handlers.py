@@ -17,18 +17,20 @@ def handle_start(user_id: int):
     text = (
         "👋 Привет! Я <b>BrainPocket</b> — тренажёр для мозга.\n\n"
         "Выбери раздел и начни прокачиваться:\n"
-        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ\n\n"
+        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ · 💍 ВК · 🪄 Гарри Поттер\n\n"
         "Задачи не повторяются, пока не пройдёшь все 🔥"
     )
     send_message(user_id, text, reply_markup=main_menu_keyboard())
 
 
 MENU_TO_TYPE = {
-    "🧩 Загадки":    "riddle",
-    "🔍 Логика":     "logic",
-    "⚡ Мини-квиз":  "quiz",
-    "🧠 IQ-задачи":  "iq",
-    "🎲 Случайное":  None,
+    "🧩 Загадки":          "riddle",
+    "🔍 Логика":           "logic",
+    "⚡ Мини-квиз":        "quiz",
+    "🧠 IQ-задачи":        "iq",
+    "💍 Властелин Колец":  "lotr",
+    "🪄 Гарри Поттер":     "hp",
+    "🎲 Случайное":        None,
 }
 
 def handle_menu(user_id: int, label: str):
@@ -84,7 +86,7 @@ def handle_next_task(user_id: int, task_type):
 
     mark_shown(user_id, task["id"])
 
-    TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠"}
+    TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠", "lotr": "💍", "hp": "🪄"}
     DIFF_LABEL = {1: "Легко", 2: "Средне", 3: "Сложно", 4: "Эксперт"}
     emoji = TYPE_EMOJI.get(task["type"], "🎲")
     diff  = DIFF_LABEL.get(task["difficulty"], "")
@@ -179,10 +181,12 @@ def handle_progress(user_id: int):
     streak = get_streak(user_id)
     text = (
         f"📈 <b>Мой прогресс</b>\n\n"
-        f"🧩 Загадки:   {p.get('riddle',0)}/1000\n"
-        f"🔍 Логика:    {p.get('logic',0)}/500\n"
-        f"⚡ Квиз:      {p.get('quiz',0)}/1000\n"
-        f"🧠 IQ:        {p.get('iq',0)}/700\n\n"
+        f"🧩 Загадки:          {p.get('riddle',0)}/1000\n"
+        f"🔍 Логика:           {p.get('logic',0)}/500\n"
+        f"⚡ Квиз:             {p.get('quiz',0)}/1000\n"
+        f"🧠 IQ:               {p.get('iq',0)}/700\n"
+        f"💍 Властелин Колец:  {p.get('lotr',0)}/20\n"
+        f"🪄 Гарри Поттер:     {p.get('hp',0)}/20\n\n"
         f"Всего решено: <b>{sum(p.values())}</b>\n"
         f"Серия: <b>{streak} дн.</b> 🔥"
     )
