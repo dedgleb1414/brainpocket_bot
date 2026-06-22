@@ -17,7 +17,7 @@ def handle_start(user_id: int):
     text = (
         "👋 Привет! Я <b>BrainPocket</b> — тренажёр для мозга.\n\n"
         "Выбери раздел и начни прокачиваться:\n"
-        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ · 💍 ВК · 🪄 Гарри Поттер\n\n"
+        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ · 💍 ВК · 🪄 Гарри Поттер · 🦸 Marvel · 🔬 ТБВ\n\n"
         "Задачи не повторяются, пока не пройдёшь все 🔥"
     )
     send_message(user_id, text, reply_markup=main_menu_keyboard())
@@ -30,6 +30,8 @@ MENU_TO_TYPE = {
     "🧠 IQ-задачи":        "iq",
     "💍 Властелин Колец":  "lotr",
     "🪄 Гарри Поттер":     "hp",
+    "🦸 Marvel":           "marvel",
+    "🔬 Теория Большого взрыва": "tbbt",
     "🎲 Случайное":        None,
 }
 
@@ -86,7 +88,8 @@ def handle_next_task(user_id: int, task_type):
 
     mark_shown(user_id, task["id"])
 
-    TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠", "lotr": "💍", "hp": "🪄"}
+    TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠", "lotr": "💍", "hp": "🪄",
+                  "marvel": "🦸", "tbbt": "🔬"}
     DIFF_LABEL = {1: "Легко", 2: "Средне", 3: "Сложно", 4: "Эксперт"}
     emoji = TYPE_EMOJI.get(task["type"], "🎲")
     diff  = DIFF_LABEL.get(task["difficulty"], "")
@@ -186,7 +189,9 @@ def handle_progress(user_id: int):
         f"⚡ Квиз:             {p.get('quiz',0)}/1000\n"
         f"🧠 IQ:               {p.get('iq',0)}/700\n"
         f"💍 Властелин Колец:  {p.get('lotr',0)}/20\n"
-        f"🪄 Гарри Поттер:     {p.get('hp',0)}/20\n\n"
+        f"🪄 Гарри Поттер:     {p.get('hp',0)}/20\n"
+        f"🦸 Marvel:           {p.get('marvel',0)}/20\n"
+        f"🔬 Теория Б. взрыва: {p.get('tbbt',0)}/20\n\n"
         f"Всего решено: <b>{sum(p.values())}</b>\n"
         f"Серия: <b>{streak} дн.</b> 🔥"
     )
