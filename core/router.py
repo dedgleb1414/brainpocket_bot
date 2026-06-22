@@ -3,6 +3,7 @@ core/router.py — разбирает Update и вызывает нужный о
 """
 
 from core.bot import answer_callback
+from core.db import upsert_user
 from core.handlers import (
     handle_start, handle_menu, handle_next_task,
     handle_answer, handle_hint, handle_favorite,
@@ -20,8 +21,11 @@ MENU_LABELS = {
 def route_update(update: dict):
     if "message" in update:
         msg = update["message"]
-        user_id = msg["from"]["id"]
+        from_user = msg["from"]
+        user_id = from_user["id"]
         text = msg.get("text", "")
+
+        upsert_user(user_id, from_user.get("username"), from_user.get("first_name"))
 
         if text == "/start":
             handle_start(user_id)
@@ -32,9 +36,12 @@ def route_update(update: dict):
 
     elif "callback_query" in update:
         cb = update["callback_query"]
-        user_id = cb["from"]["id"]
+        from_user = cb["from"]
+        user_id = from_user["id"]
         data = cb.get("data", "")
         answer_callback(cb["id"])
+
+        upsert_user(user_id, from_user.get("username"), from_user.get("first_name"))
 
         if data.startswith("next:"):
             handle_next_task(user_id, data.split(":")[1])

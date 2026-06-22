@@ -7,6 +7,7 @@ fix.py — локальный инструмент для обслуживани
   python fix.py load data/tasks.json   — загрузить новые задачи (пропускает дубли)
   python fix.py reload data/tasks.json — обновить существующие задачи (upsert)
   python fix.py stats            — статистика по задачам в БД
+  python fix.py users            — статистика по подписчикам бота
   python fix.py reset <user_id>  — сбросить историю пользователя
   python fix.py setwebhook       — зарегистрировать webhook в Telegram
   python fix.py delwebhook       — удалить webhook
@@ -120,6 +121,40 @@ def cmd_stats():
         print(f"  {label:10} {r['cnt']:>5}")
         total += r["cnt"]
     print(f"\nИтого: {total}")
+
+
+def cmd_users():
+    with conn() as c:
+        total = c.execute("SELECT count(*) as cnt FROM users").fetchone()["cnt"]
+        if total == 0:
+            print("Подписчиков пока нет.")
+            return
+
+        new_today = c.execute(
+            "SELECT count(*) as cnt FROM users WHERE first_seen >= CURRENT_DATE"
+        ).fetchone()["cnt"]
+        new_7d = c.execute(
+            "SELECT count(*) as cnt FROM users WHERE first_seen >= NOW() - INTERVAL '7 days'"
+        ).fetchone()["cnt"]
+        active_today = c.execute(
+            "SELECT count(*) as cnt FROM users WHERE last_seen >= CURRENT_DATE"
+        ).fetchone()["cnt"]
+        active_7d = c.execute(
+            "SELECT count(*) as cnt FROM users WHERE last_seen >= NOW() - INTERVAL '7 days'"
+        ).fetchone()["cnt"]
+        last_5 = c.execute(
+            "SELECT user_id, username, first_name, first_seen FROM users ORDER BY first_seen DESC LIMIT 5"
+        ).fetchall()
+
+    print(f"Всего подписчиков:      {total}")
+    print(f"Новых сегодня:           {new_today}")
+    print(f"Новых за 7 дней:         {new_7d}")
+    print(f"Активных сегодня:        {active_today}")
+    print(f"Активных за 7 дней:      {active_7d}")
+    print("\nПоследние 5 подписавшихся:")
+    for u in last_5:
+        name = u["username"] or u["first_name"] or "—"
+        print(f"  {u['user_id']:>12}  @{name}  {u['first_seen']}")
 
 
 def cmd_reset(user_id: int):
@@ -260,6 +295,7 @@ COMMANDS = {
     "load":       lambda args: cmd_load(args[0]) if args else print("Укажи путь к JSON"),
     "reload":     lambda args: cmd_reload(args[0]) if args else print("Укажи путь к JSON"),
     "stats":      lambda _: cmd_stats(),
+    "users":      lambda _: cmd_users(),
     "reset":      lambda args: cmd_reset(int(args[0])) if args else print("Укажи user_id"),
     "setwebhook": lambda _: cmd_setwebhook(),
     "delwebhook": lambda _: cmd_delwebhook(),

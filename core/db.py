@@ -16,6 +16,14 @@ def _conn():
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id    BIGINT PRIMARY KEY,
+    username   TEXT,
+    first_name TEXT,
+    first_seen TIMESTAMPTZ DEFAULT NOW(),
+    last_seen  TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id         SERIAL PRIMARY KEY,
     type       TEXT NOT NULL,
@@ -57,6 +65,19 @@ def migrate():
         conn.execute(SCHEMA)
         conn.commit()
     print("✅ Миграция выполнена")
+
+
+def upsert_user(user_id: int, username: str | None, first_name: str | None):
+    with _conn() as conn:
+        conn.execute("""
+            INSERT INTO users (user_id, username, first_name, first_seen, last_seen)
+            VALUES (%s, %s, %s, NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE
+            SET username = EXCLUDED.username,
+                first_name = EXCLUDED.first_name,
+                last_seen = NOW()
+        """, (user_id, username, first_name))
+        conn.commit()
 
 
 def mark_shown(user_id: int, task_id: int):
