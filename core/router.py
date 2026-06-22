@@ -6,7 +6,7 @@ from core.bot import answer_callback
 from core.handlers import (
     handle_start, handle_menu, handle_next_task,
     handle_answer, handle_hint, handle_favorite,
-    handle_progress, handle_daily_mode, handle_option_answer,
+    handle_progress, handle_option_answer,
     handle_quiz_answer,
 )
 
@@ -14,7 +14,7 @@ MENU_LABELS = {
     "🧩 Загадки", "🔍 Логика", "⚡ Мини-квиз", "🧠 IQ-задачи",
     "💍 Властелин Колец", "🪄 Гарри Поттер",
     "🦸 Marvel", "🔬 Теория Большого взрыва",
-    "🎲 Случайное", "📈 Мой прогресс", "❤️ Избранное", "⏱ Режим дня",
+    "🎲 Случайное", "📈 Мой прогресс", "❤️ Избранное", "🤝 Пригласить друга",
 }
 
 def route_update(update: dict):
@@ -47,8 +47,6 @@ def route_update(update: dict):
             handle_favorite(user_id, int(data.split(":")[1]))
         elif data == "progress":
             handle_progress(user_id)
-        elif data.startswith("daily:"):
-            handle_daily_mode(user_id, int(data.split(":")[1]))
         elif data.startswith("ans:"):
             parts = data.split(":")
             task_id = int(parts[1])

@@ -4,7 +4,7 @@ core/handlers.py — вся бизнес-логика бота.
 
 import random
 from core.bot import (send_message, main_menu_keyboard, task_inline_keyboard,
-                      daily_mode_keyboard, options_inline_keyboard, quiz_options_keyboard,
+                      invite_keyboard, options_inline_keyboard, quiz_options_keyboard,
                       next_task_keyboard)
 from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
 from core.db import (get_user_progress, get_streak, get_favorites, get_wrong_options_from_db,
@@ -42,8 +42,8 @@ def handle_menu(user_id: int, label: str):
     if label == "❤️ Избранное":
         handle_favorites_list(user_id)
         return
-    if label == "⏱ Режим дня":
-        send_message(user_id, "Выбери сколько времени у тебя есть:", reply_markup=daily_mode_keyboard())
+    if label == "🤝 Пригласить друга":
+        handle_invite_friend(user_id)
         return
     if label == "⚡ Мини-квиз":
         handle_mini_quiz(user_id)
@@ -275,14 +275,10 @@ def handle_quiz_answer(user_id: int, task_id: int, correct_idx: int, chosen_idx:
             _show_quiz_question(user_id, next_task, current_idx + 2)
 
 
-DAILY_PACKS = {
-    5:  [("riddle", 1), ("logic", 1)],
-    10: [("riddle", 1), ("logic", 1), ("quiz", 1)],
-    15: [("riddle", 1), ("logic", 1), ("quiz", 1), ("iq", 1)],
-}
-
-def handle_daily_mode(user_id: int, minutes: int):
-    pack = DAILY_PACKS.get(minutes, DAILY_PACKS[10])
-    send_message(user_id, f"⏱ Режим дня — <b>{minutes} минут</b>. Поехали!\n")
-    for task_type, _ in pack:
-        handle_next_task(user_id, task_type)
+def handle_invite_friend(user_id: int):
+    send_message(
+        user_id,
+        "🤝 <b>Пригласи друга в BrainPocket!</b>\n\n"
+        "Поделись ботом — тренируйтесь вместе и сравнивайте успехи.",
+        reply_markup=invite_keyboard(),
+    )

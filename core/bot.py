@@ -3,10 +3,12 @@ core/bot.py — обёртка над Telegram Bot API.
 """
 
 import os
+import urllib.parse
 import requests
 
 TOKEN = os.environ["BOT_TOKEN"]
 API = f"https://api.telegram.org/bot{TOKEN}"
+BOT_USERNAME = "brainpocket_bot"
 
 
 def send_message(chat_id, text, reply_markup=None, parse_mode="HTML"):
@@ -28,7 +30,7 @@ def main_menu_keyboard():
             ["⚡ Мини-квиз", "🧠 IQ-задачи"],
             ["💍 Властелин Колец", "🪄 Гарри Поттер"],
             ["🦸 Marvel", "🔬 Теория Большого взрыва"],
-            ["🎲 Случайное", "⏱ Режим дня"],
+            ["🎲 Случайное", "🤝 Пригласить друга"],
             ["📈 Мой прогресс", "❤️ Избранное"],
         ],
         "resize_keyboard": True,
@@ -84,11 +86,12 @@ def next_task_keyboard(task_type):
     }
 
 
-def daily_mode_keyboard():
+def invite_keyboard():
+    share_text = "Зацени BrainPocket — бот с загадками, квизами и IQ-задачками! 🧠"
+    bot_link = f"https://t.me/{BOT_USERNAME}"
+    share_url = f"https://t.me/share/url?url={urllib.parse.quote(bot_link)}&text={urllib.parse.quote(share_text)}"
     return {
         "inline_keyboard": [[
-            {"text": "⚡ 5 минут",  "callback_data": "daily:5"},
-            {"text": "🕐 10 минут", "callback_data": "daily:10"},
-            {"text": "🕒 15 минут", "callback_data": "daily:15"},
+            {"text": "📤 Поделиться с другом", "url": share_url}
         ]]
     }
