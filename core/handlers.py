@@ -8,7 +8,7 @@ from core.bot import (send_message, main_menu_keyboard, cinema_menu_keyboard, ta
                       next_task_keyboard)
 from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
 from core.db import (get_user_progress, get_streak, get_favorites, get_wrong_options_from_db,
-                     get_quiz_tasks, create_quiz_session, get_quiz_session,
+                     get_task_counts, get_quiz_tasks, create_quiz_session, get_quiz_session,
                      advance_quiz_session, fail_quiz_session, complete_quiz_session,
                      reset_history)
 
@@ -33,6 +33,17 @@ MENU_TO_TYPE = {
     "🦸 Marvel":           "marvel",
     "🔬 Теория Большого взрыва": "tbbt",
     "🎲 Случайное":        None,
+}
+
+TYPE_INFO = {
+    "riddle": ("🧩", "Загадки"),
+    "logic":  ("🔍", "Логика"),
+    "quiz":   ("⚡", "Квиз"),
+    "iq":     ("🧠", "IQ"),
+    "lotr":   ("💍", "Властелин Колец"),
+    "hp":     ("🪄", "Гарри Поттер"),
+    "marvel": ("🦸", "Marvel"),
+    "tbbt":   ("🔬", "Теория Б. взрыва"),
 }
 
 def handle_menu(user_id: int, label: str):
@@ -94,10 +105,8 @@ def handle_next_task(user_id: int, task_type):
 
     mark_shown(user_id, task["id"])
 
-    TYPE_EMOJI = {"riddle": "🧩", "logic": "🔍", "quiz": "⚡", "iq": "🧠", "lotr": "💍", "hp": "🪄",
-                  "marvel": "🦸", "tbbt": "🔬"}
     DIFF_LABEL = {1: "Легко", 2: "Средне", 3: "Сложно", 4: "Эксперт"}
-    emoji = TYPE_EMOJI.get(task["type"], "🎲")
+    emoji = TYPE_INFO.get(task["type"], ("🎲", ""))[0]
     diff  = DIFF_LABEL.get(task["difficulty"], "")
 
     text = (
@@ -187,21 +196,21 @@ def handle_favorites_list(user_id: int):
 
 def handle_progress(user_id: int):
     p = get_user_progress(user_id)
+    totals = get_task_counts()
     streak = get_streak(user_id)
-    text = (
-        f"📈 <b>Мой прогресс</b>\n\n"
-        f"🧩 Загадки:          {p.get('riddle',0)}/1000\n"
-        f"🔍 Логика:           {p.get('logic',0)}/500\n"
-        f"⚡ Квиз:             {p.get('quiz',0)}/1000\n"
-        f"🧠 IQ:               {p.get('iq',0)}/700\n"
-        f"💍 Властелин Колец:  {p.get('lotr',0)}/20\n"
-        f"🪄 Гарри Поттер:     {p.get('hp',0)}/20\n"
-        f"🦸 Marvel:           {p.get('marvel',0)}/20\n"
-        f"🔬 Теория Б. взрыва: {p.get('tbbt',0)}/20\n\n"
-        f"Всего решено: <b>{sum(p.values())}</b>\n"
-        f"Серия: <b>{streak} дн.</b> 🔥"
-    )
-    send_message(user_id, text)
+
+    lines = [f"📈 <b>Мой прогресс</b>\n"]
+    for task_type, (emoji, name) in TYPE_INFO.items():
+        total = totals.get(task_type, 0)
+        if total == 0:
+            continue
+        solved = p.get(task_type, 0)
+        lines.append(f"{emoji} {name}: {solved}/{total}")
+
+    lines.append("")
+    lines.append(f"Всего решено: <b>{sum(p.values())}</b>")
+    lines.append(f"Серия: <b>{streak} дн.</b> 🔥")
+    send_message(user_id, "\n".join(lines))
 
 
 # ── Мини-квиз ────────────────────────────────────────────────────────────────

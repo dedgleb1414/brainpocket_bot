@@ -149,6 +149,12 @@ def get_favorites(user_id: int) -> list[dict]:
     return rows
 
 
+def get_task_counts() -> dict:
+    with _conn() as conn:
+        rows = conn.execute("SELECT type, COUNT(*) AS cnt FROM tasks GROUP BY type").fetchall()
+    return {r["type"]: r["cnt"] for r in rows}
+
+
 def get_user_progress(user_id: int) -> dict:
     with _conn() as conn:
         rows = conn.execute("""
