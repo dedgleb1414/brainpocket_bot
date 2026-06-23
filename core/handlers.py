@@ -3,7 +3,7 @@ core/handlers.py — вся бизнес-логика бота.
 """
 
 import random
-from core.bot import (send_message, main_menu_keyboard, task_inline_keyboard,
+from core.bot import (send_message, main_menu_keyboard, cinema_menu_keyboard, task_inline_keyboard,
                       invite_keyboard, options_inline_keyboard, quiz_options_keyboard,
                       next_task_keyboard)
 from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, add_favorite
@@ -17,7 +17,7 @@ def handle_start(user_id: int):
     text = (
         "👋 Привет! Я <b>BrainPocket</b> — тренажёр для мозга.\n\n"
         "Выбери раздел и начни прокачиваться:\n"
-        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ · 💍 ВК · 🪄 Гарри Поттер · 🦸 Marvel · 🔬 ТБВ\n\n"
+        "🧩 Загадки · 🔍 Логика · ⚡ Квиз · 🧠 IQ · 🎬 Кинематограф\n\n"
         "Задачи не повторяются, пока не пройдёшь все 🔥"
     )
     send_message(user_id, text, reply_markup=main_menu_keyboard())
@@ -47,6 +47,12 @@ def handle_menu(user_id: int, label: str):
         return
     if label == "⚡ Мини-квиз":
         handle_mini_quiz(user_id)
+        return
+    if label == "🎬 Кинематограф":
+        send_message(user_id, "🎬 Выбери вселенную:", reply_markup=cinema_menu_keyboard())
+        return
+    if label == "⬅️ Назад":
+        send_message(user_id, "Главное меню:", reply_markup=main_menu_keyboard())
         return
     task_type = MENU_TO_TYPE.get(label)
     handle_next_task(user_id, task_type)
