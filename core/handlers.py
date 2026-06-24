@@ -34,6 +34,7 @@ MENU_TO_TYPE = {
     "🔬 Теория Большого взрыва": "tbbt",
     "🛸 Гравити Фолз":     "gravityfalls",
     "🚀 Звёздные Войны":   "starwars",
+    "❄️ Холодное Сердце":  "frozen",
     "🎲 Случайное":        None,
 }
 
@@ -48,6 +49,7 @@ TYPE_INFO = {
     "tbbt":   ("🔬", "Теория Б. взрыва"),
     "gravityfalls": ("🛸", "Гравити Фолз"),
     "starwars": ("🚀", "Звёздные Войны"),
+    "frozen": ("❄️", "Холодное Сердце"),
 }
 
 def handle_menu(user_id: int, label: str):
