@@ -10,7 +10,7 @@ from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, a
 from core.db import (get_user_progress, get_streak, get_favorites, get_wrong_options_from_db,
                      get_task_counts, get_quiz_tasks, create_quiz_session, get_quiz_session,
                      advance_quiz_session, fail_quiz_session, complete_quiz_session,
-                     reset_history)
+                     reset_history, mark_revealed, is_task_revealed)
 
 
 def handle_start(user_id: int):
@@ -146,9 +146,15 @@ def handle_answer(user_id: int, text: str):
     given   = text.strip().lower()
 
     if correct in given or given in correct:
-        mark_solved(user_id, task_id)
-        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
-                     reply_markup=next_task_keyboard(task["type"]))
+        if is_task_revealed(user_id, task_id):
+            send_message(user_id,
+                         "☑️ Верно, но ответ уже был раскрыт подсказкой — попытка не засчитана.\n\n"
+                         "Эта задача вернётся в следующий круг.",
+                         reply_markup=next_task_keyboard(task["type"]))
+        else:
+            mark_solved(user_id, task_id)
+            send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
+                         reply_markup=next_task_keyboard(task["type"]))
     else:
         send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
 
@@ -159,9 +165,15 @@ def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_id
         return
 
     if chosen_idx == correct_idx:
-        mark_solved(user_id, task_id)
-        send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
-                     reply_markup=next_task_keyboard(task["type"]))
+        if is_task_revealed(user_id, task_id):
+            send_message(user_id,
+                         "☑️ Верно, но ответ уже был раскрыт подсказкой — попытка не засчитана.\n\n"
+                         "Эта задача вернётся в следующий круг.",
+                         reply_markup=next_task_keyboard(task["type"]))
+        else:
+            mark_solved(user_id, task_id)
+            send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
+                         reply_markup=next_task_keyboard(task["type"]))
     else:
         send_message(user_id, "❌ Неверно. Попробуй ещё или жми 💡 Подсказку.")
 
@@ -181,6 +193,7 @@ def handle_hint(user_id: int, task_id: int, level: int = 0):
         else:
             send_message(user_id, "💡 Подсказки нет.", reply_markup=stronger_btn)
     else:
+        mark_revealed(user_id, task_id)
         send_message(user_id, f"💡 <b>Ответ:</b> {task['answer']}")
 
 

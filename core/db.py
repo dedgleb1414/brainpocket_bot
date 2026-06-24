@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS user_history (
     task_id    INTEGER REFERENCES tasks(id),
     solved     BOOLEAN DEFAULT FALSE,
     favorited  BOOLEAN DEFAULT FALSE,
+    revealed   BOOLEAN DEFAULT FALSE,
     shown_at   TIMESTAMP DEFAULT NOW(),
     solved_at  TIMESTAMP,
     UNIQUE (user_id, task_id)
@@ -63,6 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_type   ON tasks(type);
 def migrate():
     with _conn() as conn:
         conn.execute(SCHEMA)
+        conn.execute("ALTER TABLE user_history ADD COLUMN IF NOT EXISTS revealed BOOLEAN DEFAULT FALSE")
         conn.commit()
     print("✅ Миграция выполнена")
 
@@ -98,6 +100,24 @@ def mark_solved(user_id: int, task_id: int):
             WHERE user_id = %s AND task_id = %s
         """, (user_id, task_id))
         conn.commit()
+
+
+def mark_revealed(user_id: int, task_id: int):
+    with _conn() as conn:
+        conn.execute("""
+            UPDATE user_history SET revealed = TRUE
+            WHERE user_id = %s AND task_id = %s
+        """, (user_id, task_id))
+        conn.commit()
+
+
+def is_task_revealed(user_id: int, task_id: int) -> bool:
+    with _conn() as conn:
+        row = conn.execute("""
+            SELECT revealed FROM user_history
+            WHERE user_id = %s AND task_id = %s
+        """, (user_id, task_id)).fetchone()
+    return bool(row and row["revealed"])
 
 
 def get_last_shown_task(user_id: int) -> int | None:
