@@ -32,6 +32,7 @@ MENU_TO_TYPE = {
     "🪄 Гарри Поттер":     "hp",
     "🦸 Marvel":           "marvel",
     "🔬 Теория Большого взрыва": "tbbt",
+    "🛸 Гравити Фолз":     "gravityfalls",
     "🎲 Случайное":        None,
 }
 
@@ -44,6 +45,7 @@ TYPE_INFO = {
     "hp":     ("🪄", "Гарри Поттер"),
     "marvel": ("🦸", "Marvel"),
     "tbbt":   ("🔬", "Теория Б. взрыва"),
+    "gravityfalls": ("🛸", "Гравити Фолз"),
 }
 
 def handle_menu(user_id: int, label: str):
