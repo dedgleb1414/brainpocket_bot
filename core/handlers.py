@@ -10,7 +10,10 @@ from core.tasks import get_next_task, get_task_by_id, mark_shown, mark_solved, a
 from core.db import (get_user_progress, get_streak, get_favorites, get_wrong_options_from_db,
                      get_task_counts, get_quiz_tasks, create_quiz_session, get_quiz_session,
                      advance_quiz_session, fail_quiz_session, complete_quiz_session,
-                     reset_history, mark_revealed, is_task_revealed)
+                     reset_history, mark_revealed, is_task_revealed, increment_wrong_attempt,
+                     get_wrong_attempts)
+
+MAX_WRONG_ATTEMPTS = 2
 
 
 def handle_start(user_id: int):
@@ -142,6 +145,13 @@ def handle_answer(user_id: int, text: str):
     if is_multiword(task["answer"]):
         return
 
+    if get_wrong_attempts(user_id, task_id) >= MAX_WRONG_ATTEMPTS:
+        send_message(user_id,
+                     "🚫 Попытки на эту задачу закончились.\n\n"
+                     "Эта задача вернётся в следующий круг.",
+                     reply_markup=next_task_keyboard(task["type"]))
+        return
+
     correct = task["answer"].strip().lower()
     given   = text.strip().lower()
 
@@ -156,12 +166,26 @@ def handle_answer(user_id: int, text: str):
             send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
                          reply_markup=next_task_keyboard(task["type"]))
     else:
-        send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
+        attempts = increment_wrong_attempt(user_id, task_id)
+        if attempts >= MAX_WRONG_ATTEMPTS:
+            send_message(user_id,
+                         "❌ Неверно во второй раз — попытки закончились.\n\n"
+                         "Эта задача вернётся в следующий круг.",
+                         reply_markup=next_task_keyboard(task["type"]))
+        else:
+            send_message(user_id, f"❌ Не совсем. Попробуй ещё или жми 💡 Подсказку.")
 
 
 def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_idx: int):
     task = get_task_by_id(task_id)
     if not task:
+        return
+
+    if get_wrong_attempts(user_id, task_id) >= MAX_WRONG_ATTEMPTS:
+        send_message(user_id,
+                     "🚫 Попытки на эту задачу закончились.\n\n"
+                     "Эта задача вернётся в следующий круг.",
+                     reply_markup=next_task_keyboard(task["type"]))
         return
 
     if chosen_idx == correct_idx:
@@ -175,7 +199,14 @@ def handle_option_answer(user_id: int, task_id: int, correct_idx: int, chosen_id
             send_message(user_id, f"✅ Верно!\n\n<b>Ответ:</b> {task['answer']}",
                          reply_markup=next_task_keyboard(task["type"]))
     else:
-        send_message(user_id, "❌ Неверно. Попробуй ещё или жми 💡 Подсказку.")
+        attempts = increment_wrong_attempt(user_id, task_id)
+        if attempts >= MAX_WRONG_ATTEMPTS:
+            send_message(user_id,
+                         "❌ Неверно во второй раз — попытки закончились.\n\n"
+                         "Эта задача вернётся в следующий круг.",
+                         reply_markup=next_task_keyboard(task["type"]))
+        else:
+            send_message(user_id, "❌ Неверно. Попробуй ещё или жми 💡 Подсказку.")
 
 
 def handle_hint(user_id: int, task_id: int, level: int = 0):

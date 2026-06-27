@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS user_history (
     solved     BOOLEAN DEFAULT FALSE,
     favorited  BOOLEAN DEFAULT FALSE,
     revealed   BOOLEAN DEFAULT FALSE,
+    wrong_attempts INTEGER DEFAULT 0,
     shown_at   TIMESTAMP DEFAULT NOW(),
     solved_at  TIMESTAMP,
     UNIQUE (user_id, task_id)
@@ -65,6 +66,7 @@ def migrate():
     with _conn() as conn:
         conn.execute(SCHEMA)
         conn.execute("ALTER TABLE user_history ADD COLUMN IF NOT EXISTS revealed BOOLEAN DEFAULT FALSE")
+        conn.execute("ALTER TABLE user_history ADD COLUMN IF NOT EXISTS wrong_attempts INTEGER DEFAULT 0")
         conn.commit()
     print("✅ Миграция выполнена")
 
@@ -118,6 +120,26 @@ def is_task_revealed(user_id: int, task_id: int) -> bool:
             WHERE user_id = %s AND task_id = %s
         """, (user_id, task_id)).fetchone()
     return bool(row and row["revealed"])
+
+
+def get_wrong_attempts(user_id: int, task_id: int) -> int:
+    with _conn() as conn:
+        row = conn.execute("""
+            SELECT wrong_attempts FROM user_history
+            WHERE user_id = %s AND task_id = %s
+        """, (user_id, task_id)).fetchone()
+    return row["wrong_attempts"] if row else 0
+
+
+def increment_wrong_attempt(user_id: int, task_id: int) -> int:
+    with _conn() as conn:
+        row = conn.execute("""
+            UPDATE user_history SET wrong_attempts = wrong_attempts + 1
+            WHERE user_id = %s AND task_id = %s
+            RETURNING wrong_attempts
+        """, (user_id, task_id)).fetchone()
+        conn.commit()
+    return row["wrong_attempts"] if row else 1
 
 
 def get_last_shown_task(user_id: int) -> int | None:
